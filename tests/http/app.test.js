@@ -136,3 +136,13 @@ test('campaign analytics endpoints require authentication', async () => {
 
   assert.deepEqual(responses.map(({ status }) => status), [401, 401, 401]);
 });
+
+test('operational reconciliation endpoints require authentication', async () => {
+  const responses = await Promise.all([
+    request(app).get('/api/operations/campaigns/campaign-1/integrity'),
+    request(app).post('/api/operations/campaigns/campaign-1/reconcile').send({ dryRun: true }),
+    request(app).post('/api/operations/campaigns/reconcile').send({ dryRun: true }),
+  ]);
+
+  assert.deepEqual(responses.map(({ status }) => status), [401, 401, 401]);
+});
