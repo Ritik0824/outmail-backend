@@ -126,3 +126,13 @@ test('delivery webhooks reject malformed JSON after signature verification', asy
   assert.equal(response.status, 400);
   assert.equal(response.body.code, 'INVALID_WEBHOOK_JSON');
 });
+
+test('campaign analytics endpoints require authentication', async () => {
+  const responses = await Promise.all([
+    request(app).get('/api/analytics/overview'),
+    request(app).get('/api/analytics/trends'),
+    request(app).get('/api/analytics/campaigns/campaign-1'),
+  ]);
+
+  assert.deepEqual(responses.map(({ status }) => status), [401, 401, 401]);
+});
