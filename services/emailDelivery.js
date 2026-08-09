@@ -1,6 +1,13 @@
 import { DelayedError, UnrecoverableError } from 'bullmq';
+import { getSuppressionDecision } from './suppressionService.js';
 
-const TERMINAL_RECIPIENT_STATUSES = ['sent', 'failed', 'cancelled', 'delivery_unknown'];
+const TERMINAL_RECIPIENT_STATUSES = [
+  'sent',
+  'failed',
+  'cancelled',
+  'suppressed',
+  'delivery_unknown',
+];
 const PAUSED_RECHECK_MS = 30_000;
 
 function errorMessage(error) {
@@ -22,7 +29,11 @@ async function updateCampaignProgress(transaction, campaignId, field, now) {
     data: { [field]: { increment: 1 } },
   });
 
-  if (campaign.sent_emails + campaign.failed_emails >= campaign.total_emails) {
+  const terminalOutcomes = campaign.sent_emails
+    + campaign.failed_emails
+    + (campaign.cancelled_emails || 0)
+    + (campaign.suppressed_emails || 0);
+  if (terminalOutcomes >= campaign.total_emails) {
     await transaction.campaign.update({
       where: { id: campaignId },
       data: { status: 'completed', completed_at: now },
@@ -243,11 +254,44 @@ async function recordCampaignCancellation({ prisma, campaignId, recipientId, now
   });
 }
 
+async function recordSuppressedOutcome({ prisma, campaignId, recipientId, decision, now }) {
+  return prisma.$transaction(async (transaction) => {
+    const transition = await transaction.campaignRecipient.updateMany({
+      where: { id: recipientId, status: { notIn: TERMINAL_RECIPIENT_STATUSES } },
+      data: {
+        status: 'suppressed',
+        suppressed_at: now,
+        suppression_reason: decision.entry.reason,
+        failed_at: null,
+        last_error: null,
+      },
+    });
+    if (!transition.count) return false;
+
+    await transaction.campaignEvent.create({
+      data: {
+        campaign_id: campaignId,
+        actor_user_id: null,
+        type: 'recipient.suppressed',
+        to_status: 'suppressed',
+        metadata: {
+          recipientId,
+          reason: decision.entry.reason,
+          source: decision.entry.source,
+        },
+      },
+    });
+    await updateCampaignProgress(transaction, campaignId, 'suppressed_emails', now);
+    return true;
+  });
+}
+
 export function createEmailJobProcessor({
   prisma,
   sendEmail,
   checkRateLimit,
   recordEmailCount,
+  checkSuppression = getSuppressionDecision,
   now = () => new Date(),
 }) {
   return async function processEmailJob(job) {
@@ -300,6 +344,23 @@ export function createEmailJobProcessor({
     if (persistedRecipient.campaign.status === 'paused') {
       await job.moveToDelayed(Date.now() + PAUSED_RECHECK_MS, job.token);
       throw new DelayedError();
+    }
+
+    const suppression = await checkSuppression({ prisma, userId, email: recipient.email });
+    if (suppression.suppressed) {
+      await recordSuppressedOutcome({
+        prisma,
+        campaignId,
+        recipientId,
+        decision: suppression,
+        now: now(),
+      });
+      return {
+        success: false,
+        suppressed: true,
+        reason: suppression.entry.reason,
+        status: 'suppressed',
+      };
     }
 
     const { allowed, delayMs } = await checkRateLimit(userId);

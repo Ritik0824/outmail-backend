@@ -18,6 +18,7 @@ function createDeliveryStore({
       sent_emails: 0,
       failed_emails: 0,
       cancelled_emails: 0,
+      suppressed_emails: 0,
       started_at: null,
       completed_at: null,
     },
@@ -126,6 +127,7 @@ function createProcessor(store, overrides = {}) {
     sendEmail: async () => ({ success: true, messageId: 'provider-1' }),
     checkRateLimit: async () => ({ allowed: true, delayMs: 0 }),
     recordEmailCount: async () => {},
+    checkSuppression: async () => ({ suppressed: false, entry: null }),
     now: () => new Date('2026-08-10T10:00:00.000Z'),
     ...overrides,
   });
@@ -265,5 +267,33 @@ test('a cancelled campaign prevents sending and records the recipient outcome on
   assert.equal(store.state.recipient.status, 'cancelled');
   assert.equal(store.state.campaign.cancelled_emails, 1);
   assert.equal(store.state.events[0].type, 'recipient.cancelled');
+  assert.equal(store.state.attempts.size, 0);
+});
+
+test('a suppressed address is never sent and completes recipient progress', async () => {
+  const store = createDeliveryStore();
+  let sends = 0;
+  const processor = createProcessor(store, {
+    sendEmail: async () => { sends += 1; return { success: true }; },
+    checkSuppression: async () => ({
+      suppressed: true,
+      entry: { reason: 'complaint', source: 'provider_webhook' },
+    }),
+  });
+
+  const result = await processor(createJob());
+
+  assert.deepEqual(result, {
+    success: false,
+    suppressed: true,
+    reason: 'complaint',
+    status: 'suppressed',
+  });
+  assert.equal(sends, 0);
+  assert.equal(store.state.recipient.status, 'suppressed');
+  assert.equal(store.state.recipient.suppression_reason, 'complaint');
+  assert.equal(store.state.campaign.suppressed_emails, 1);
+  assert.equal(store.state.campaign.status, 'completed');
+  assert.equal(store.state.events[0].type, 'recipient.suppressed');
   assert.equal(store.state.attempts.size, 0);
 });

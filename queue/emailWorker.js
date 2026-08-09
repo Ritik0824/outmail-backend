@@ -10,6 +10,7 @@ export function createEmailWorker({
   sendEmail = sendEmailWithGmail,
   checkRateLimit = canSendEmail,
   recordEmailCount = incrementEmailCount,
+  checkSuppression,
 } = {}) {
   if (!prisma) {
     throw new Error('createEmailWorker requires a Prisma client');
@@ -20,6 +21,7 @@ export function createEmailWorker({
     sendEmail,
     checkRateLimit,
     recordEmailCount,
+    checkSuppression,
   });
   const worker = new Worker('emailQueue', processor, { connection });
 
