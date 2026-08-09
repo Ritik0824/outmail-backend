@@ -8,12 +8,27 @@ import {
   CampaignCreationError,
   createAndQueueCampaign,
 } from '../services/campaignCreation.js';
+import {
+  CampaignManagementError,
+  getCampaignOverview,
+  getRecipientAttempts,
+  listCampaignRecipients,
+  requeueCampaign,
+} from '../services/campaignManagement.js';
 
 const router = express.Router();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024, files: 1 },
 });
+
+function sendManagementError(res, error, fallbackMessage) {
+  if (error instanceof CampaignManagementError) {
+    return res.status(error.status).json({ error: error.message, code: error.code });
+  }
+  console.error(fallbackMessage, error);
+  return res.status(500).json({ error: fallbackMessage });
+}
 
 router.get('/mine', authenticateJWT, async (req, res) => {
   try {
@@ -61,6 +76,61 @@ router.post('/start', authenticateJWT, upload.single('csv'), async (req, res) =>
       });
     }
     res.status(500).json({ error: 'Failed to start campaign.' });
+  }
+});
+
+router.get('/:campaignId', authenticateJWT, async (req, res) => {
+  try {
+    const campaign = await getCampaignOverview({
+      prisma,
+      campaignId: req.params.campaignId,
+      userId: req.user.id,
+    });
+    res.json({ campaign });
+  } catch (error) {
+    sendManagementError(res, error, 'Failed to fetch campaign');
+  }
+});
+
+router.get('/:campaignId/recipients', authenticateJWT, async (req, res) => {
+  try {
+    const result = await listCampaignRecipients({
+      prisma,
+      campaignId: req.params.campaignId,
+      userId: req.user.id,
+      query: req.query,
+    });
+    res.json(result);
+  } catch (error) {
+    sendManagementError(res, error, 'Failed to fetch campaign recipients');
+  }
+});
+
+router.get('/:campaignId/recipients/:recipientId/attempts', authenticateJWT, async (req, res) => {
+  try {
+    const recipient = await getRecipientAttempts({
+      prisma,
+      campaignId: req.params.campaignId,
+      recipientId: req.params.recipientId,
+      userId: req.user.id,
+    });
+    res.json({ recipient });
+  } catch (error) {
+    sendManagementError(res, error, 'Failed to fetch delivery attempts');
+  }
+});
+
+router.post('/:campaignId/requeue', authenticateJWT, async (req, res) => {
+  try {
+    const result = await requeueCampaign({
+      prisma,
+      queue: emailQueue,
+      campaignId: req.params.campaignId,
+      userId: req.user.id,
+    });
+    res.status(202).json({ success: true, ...result });
+  } catch (error) {
+    sendManagementError(res, error, 'Failed to requeue campaign');
   }
 });
 

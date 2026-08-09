@@ -51,3 +51,11 @@ test('authentication endpoints do not accept anonymous credential updates', asyn
 
   assert.equal(response.status, 401);
 });
+
+test('campaign delivery details and recovery require authentication', async () => {
+  const details = await request(app).get('/api/campaigns/campaign-1/recipients');
+  const recovery = await request(app).post('/api/campaigns/campaign-1/requeue');
+
+  assert.equal(details.status, 401);
+  assert.equal(recovery.status, 401);
+});
