@@ -23,6 +23,7 @@ before(async () => {
 });
 
 beforeEach(async () => {
+  await prisma.suppressionEntry.deleteMany();
   await prisma.user.deleteMany();
   user = await prisma.user.create({
     data: {

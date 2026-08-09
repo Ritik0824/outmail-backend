@@ -24,6 +24,7 @@ model User {
   csv_uploads     CsvUpload[]
   resumes         Resume[]
   email_templates EmailTemplate[]
+  suppressions    SuppressionEntry[]
 }
 
 model Campaign {
@@ -173,4 +174,22 @@ model CampaignEvent {
 
   @@index([campaign_id, created_at])
   @@index([type, created_at])
+}
+
+model SuppressionEntry {
+  id         String    @id @default(uuid())
+  user_id    String
+  email      String
+  reason     String
+  source     String
+  details    Json      @default("{}")
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  removed_at DateTime?
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, email])
+  @@index([user_id, removed_at, created_at])
+  @@index([reason, created_at])
 }
