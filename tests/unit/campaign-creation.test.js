@@ -166,6 +166,8 @@ test('createAndQueueCampaign persists recipients before adding idempotent jobs',
   assert.equal(dependencies.stored.recipients[0].queue_job_id, 'campaign-recipient-id-3');
   assert.equal(dependencies.stored.jobs[0].opts.jobId, 'campaign-recipient-id-3');
   assert.equal(dependencies.stored.jobs[0].data.recipientId, 'id-3');
+  assert.equal(dependencies.stored.campaign.subject, 'Hello {{name}}');
+  assert.equal(dependencies.stored.campaign.body, 'Welcome {{name}}');
   assert.ok(dependencies.calls.includes('mark-queued'));
 });
 

@@ -32,6 +32,8 @@ model Campaign {
   csv_upload_id   String    @unique
   template_id     String?
   name            String
+  subject         String
+  body            String
   status          String
   scheduled_start DateTime
   timezone        String

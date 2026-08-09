@@ -149,6 +149,8 @@ async function persistCampaign({
   recipients,
   campaignName,
   timezone,
+  subject,
+  body,
 }) {
   return prisma.$transaction(async (transaction) => {
     await transaction.csvUpload.create({
@@ -167,6 +169,8 @@ async function persistCampaign({
         csv_upload_id: ids.csvUploadId,
         template_id: templateId,
         name: campaignName,
+        subject,
+        body,
         status: 'scheduled',
         scheduled_start: scheduledStart,
         timezone,
@@ -273,6 +277,8 @@ export async function createAndQueueCampaign({
       recipients,
       campaignName,
       timezone,
+      subject: template.subject,
+      body: template.body,
     });
   } catch (error) {
     try {
