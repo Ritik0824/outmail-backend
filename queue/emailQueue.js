@@ -1,7 +1,11 @@
-// File: queue/emailQueue.js
 import { Queue } from 'bullmq';
-import IORedis from 'ioredis';
+import { createRedisConnection } from './redisConnection.js';
 
-const connection = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379');
+const connection = createRedisConnection({ lazyConnect: true });
 
 export const emailQueue = new Queue('emailQueue', { connection });
+
+export async function closeEmailQueue() {
+  await emailQueue.close();
+  await connection.quit();
+}

@@ -1,65 +1,28 @@
-// File: server.js
+import 'dotenv/config';
+import { createApp } from './app.js';
+import { closeDB, connectDB } from './config/db.js';
+import prisma from './prisma/prismaClient.js';
+import { closeEmailQueue } from './queue/emailQueue.js';
 
-import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import cookieParser from 'cookie-parser';
-import { connectDB } from './config/db.js';
-import authRoutes from './routes/auth.js';
-import contactRoutes from './routes/contact.js';
-import campaignsRouter from './routes/campaigns.js';
-import fileUpload from 'express-fileupload';
-import templatesRouter from './routes/templates.js';
-import emailUsageRoutes from './routes/emailUsage.js';
-import { authenticateJWT } from './middleware/auth.js';
-import resumesRouter from './routes/resumes.js';
+const port = Number(process.env.PORT || 3000);
 
-import { createBullBoard } from '@bull-board/api';
-import { ExpressAdapter } from '@bull-board/express';
-import pkg from '@bull-board/api/dist/src/queueAdapters/bullMQ.js'; 
-const { BullMQAdapter } = pkg;
-
-import { emailQueue } from './queue/emailQueue.js';
-import './queue/emailWorker.js'; 
-
-dotenv.config();
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Connect to PostgreSQL
-connectDB();
-
-// Middleware
-app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
-
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/auth', contactRoutes);
-app.use('/api/campaigns', campaignsRouter);
-app.use('/api/auth', emailUsageRoutes);
-app.use('/api/templates', templatesRouter);
-app.use('/api/resumes', resumesRouter);
-
-// Bull Board v5.9.1 Setup
-const serverAdapter = new ExpressAdapter();
-serverAdapter.setBasePath('/admin/queues');
-
-createBullBoard({
-  queues: [new BullMQAdapter(emailQueue)],
-  serverAdapter,
+await connectDB();
+const app = createApp();
+const server = app.listen(port, () => {
+  console.log(`OutMail API listening on http://localhost:${port}`);
 });
 
-app.use('/admin/queues', serverAdapter.getRouter());
+async function shutdown(signal) {
+  console.log(`Received ${signal}; shutting down`);
+  server.close(async () => {
+    await Promise.allSettled([
+      closeEmailQueue(),
+      closeDB(),
+      prisma.$disconnect(),
+    ]);
+    process.exit(0);
+  });
+}
 
-// Health Check
-app.get('/', (req, res) => {
-  res.send('OutMail backend is running ✅');
-});
-
-// Start Server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+process.once('SIGINT', () => shutdown('SIGINT'));
+process.once('SIGTERM', () => shutdown('SIGTERM'));

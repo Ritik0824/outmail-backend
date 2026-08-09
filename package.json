@@ -6,7 +6,11 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start:api": "node server.js",
+    "start:worker": "node worker.js",
+    "dev": "nodemon server.js",
+    "dev:worker": "nodemon worker.js",
+    "check": "node --check app.js && node --check server.js && node --check worker.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.842.0",

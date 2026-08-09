@@ -1,14 +1,20 @@
 import { Worker } from 'bullmq';
-import { PrismaClient } from '@prisma/client';
 import sendEmailWithGmail from '../utils/sendEmailWithGmail.js';
 import { canSendEmail, incrementEmailCount } from '../utils/rateLimit.js';
+import { createRedisConnection } from './redisConnection.js';
 
-const prisma = new PrismaClient();
-console.log('[Worker] Email Worker is running and ready to process jobs...');
+export function createEmailWorker({
+  prisma,
+  connection = createRedisConnection(),
+  sendEmail = sendEmailWithGmail,
+  checkRateLimit = canSendEmail,
+  recordEmailCount = incrementEmailCount,
+} = {}) {
+  if (!prisma) {
+    throw new Error('createEmailWorker requires a Prisma client');
+  }
 
-const worker = new Worker(
-  'emailQueue',
-  async (job) => {
+  const worker = new Worker('emailQueue', async (job) => {
     const {
       campaignId,
       userId,
@@ -22,7 +28,7 @@ const worker = new Worker(
     console.log(`[Worker] Processing job ${job.id} for user ${userId}, recipient: ${recipient.email}`);
 
     // 1. Rate limiting
-    const { allowed, delayMs } = await canSendEmail(userId);
+    const { allowed, delayMs } = await checkRateLimit(userId);
     console.log(`[Worker] Rate limit check for user ${userId}: allowed=${allowed}, delayMs=${delayMs}`);
     if (!allowed) {
       console.log(`[Worker] User ${userId} exceeded rate limit. Rescheduling job ${job.id} for ${Math.round(delayMs/60000)} minutes later.`);
@@ -42,7 +48,7 @@ const worker = new Worker(
     console.log(`[Worker] Sending email to ${recipient.email} with subject "${subject || (template && template.subject)}"`);
 
     // 3. Send email
-    const result = await sendEmailWithGmail({
+    const result = await sendEmail({
       user,
       recipient,
       subject: subject || (template && template.subject),
@@ -55,7 +61,7 @@ const worker = new Worker(
 
     if (result.success) {
       console.log(`[Worker] Email sent successfully to ${recipient.email}`);
-      await incrementEmailCount(userId);
+      await recordEmailCount(userId);
     } else {
       console.error(`[Worker] Failed to send email to ${recipient.email}: ${result.error}`);
     }
@@ -72,13 +78,17 @@ const worker = new Worker(
     });
 
     return result.success;
-  },
-  { connection: { host: 'localhost', port: 6379 } }
-);
+  }, { connection });
 
-worker.on('completed', (job) => {
-  console.log(`[Worker] Job ${job.id} completed`);
-});
-worker.on('failed', (job, err) => {
-  console.error(`[Worker] Job ${job.id} failed:`, err);
-});
+  worker.on('ready', () => {
+    console.log('[Worker] Email worker is ready');
+  });
+  worker.on('completed', (job) => {
+    console.log(`[Worker] Job ${job.id} completed`);
+  });
+  worker.on('failed', (job, err) => {
+    console.error(`[Worker] Job ${job?.id ?? 'unknown'} failed:`, err);
+  });
+
+  return worker;
+}
