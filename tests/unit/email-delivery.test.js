@@ -5,6 +5,7 @@ import { createEmailJobProcessor } from '../../services/emailDelivery.js';
 
 function createDeliveryStore({
   recipientStatus = 'queued',
+  campaignStatus = 'scheduled',
   user = {},
   failSuccessPersistence = false,
 } = {}) {
@@ -12,15 +13,17 @@ function createDeliveryStore({
     recipient: { id: 'recipient-1', status: recipientStatus, last_error: null },
     campaign: {
       id: 'campaign-1',
-      status: 'scheduled',
+      status: campaignStatus,
       total_emails: 1,
       sent_emails: 0,
       failed_emails: 0,
+      cancelled_emails: 0,
       started_at: null,
       completed_at: null,
     },
     attempts: new Map(),
     logs: [],
+    events: [],
   };
 
   const transaction = {
@@ -59,6 +62,9 @@ function createDeliveryStore({
     emailLog: {
       create: async ({ data }) => { state.logs.push(data); return data; },
     },
+    campaignEvent: {
+      create: async ({ data }) => { state.events.push(data); return data; },
+    },
   };
 
   const prisma = {
@@ -66,6 +72,7 @@ function createDeliveryStore({
       findFirst: async () => ({
         id: state.recipient.id,
         status: state.recipient.status,
+        campaign: { status: state.campaign.status },
       }),
       updateMany: async ({ data }) => {
         Object.assign(state.recipient, data);
@@ -227,4 +234,36 @@ test('a post-send persistence failure is not retried as another email', async ()
   assert.equal(store.state.recipient.status, 'delivery_unknown');
   assert.match(store.state.recipient.last_error, /Provider accepted the email/);
   assert.equal(store.state.campaign.sent_emails, 0);
+});
+
+test('a paused campaign delays work without opening a delivery attempt', async () => {
+  const store = createDeliveryStore({ campaignStatus: 'paused' });
+  let delayed;
+  const processor = createProcessor(store);
+  const job = createJob({
+    moveToDelayed: async (timestamp, token) => { delayed = { timestamp, token }; },
+  });
+
+  await assert.rejects(processor(job), DelayedError);
+
+  assert.equal(delayed.token, 'worker-token');
+  assert.ok(delayed.timestamp > Date.now());
+  assert.equal(store.state.attempts.size, 0);
+});
+
+test('a cancelled campaign prevents sending and records the recipient outcome once', async () => {
+  const store = createDeliveryStore({ campaignStatus: 'cancelled' });
+  let sends = 0;
+  const processor = createProcessor(store, {
+    sendEmail: async () => { sends += 1; return { success: true }; },
+  });
+
+  const result = await processor(createJob());
+
+  assert.deepEqual(result, { success: false, cancelled: true, status: 'cancelled' });
+  assert.equal(sends, 0);
+  assert.equal(store.state.recipient.status, 'cancelled');
+  assert.equal(store.state.campaign.cancelled_emails, 1);
+  assert.equal(store.state.events[0].type, 'recipient.cancelled');
+  assert.equal(store.state.attempts.size, 0);
 });

@@ -1,6 +1,7 @@
 import { DelayedError, UnrecoverableError } from 'bullmq';
 
-const TERMINAL_RECIPIENT_STATUSES = ['sent', 'failed', 'delivery_unknown'];
+const TERMINAL_RECIPIENT_STATUSES = ['sent', 'failed', 'cancelled', 'delivery_unknown'];
+const PAUSED_RECHECK_MS = 30_000;
 
 function errorMessage(error) {
   if (error instanceof Error && error.message) return error.message;
@@ -217,6 +218,31 @@ async function markDeliveryUnknown({ prisma, recipientId, error }) {
   return message;
 }
 
+async function recordCampaignCancellation({ prisma, campaignId, recipientId, now }) {
+  return prisma.$transaction(async (transaction) => {
+    const transition = await transaction.campaignRecipient.updateMany({
+      where: { id: recipientId, status: { notIn: TERMINAL_RECIPIENT_STATUSES } },
+      data: { status: 'cancelled', failed_at: null, last_error: null },
+    });
+    if (!transition.count) return false;
+
+    await transaction.campaign.update({
+      where: { id: campaignId },
+      data: { cancelled_emails: { increment: 1 } },
+    });
+    await transaction.campaignEvent.create({
+      data: {
+        campaign_id: campaignId,
+        actor_user_id: null,
+        type: 'recipient.cancelled',
+        to_status: 'cancelled',
+        metadata: { recipientId, source: 'worker_campaign_guard' },
+      },
+    });
+    return true;
+  });
+}
+
 export function createEmailJobProcessor({
   prisma,
   sendEmail,
@@ -246,7 +272,11 @@ export function createEmailJobProcessor({
         campaign_id: campaignId,
         campaign: { user_id: userId },
       },
-      select: { id: true, status: true },
+      select: {
+        id: true,
+        status: true,
+        campaign: { select: { status: true } },
+      },
     });
     if (!persistedRecipient) {
       throw new UnrecoverableError('Campaign recipient was not found');
@@ -257,6 +287,19 @@ export function createEmailJobProcessor({
         deduplicated: true,
         status: persistedRecipient.status,
       };
+    }
+    if (persistedRecipient.campaign.status === 'cancelled') {
+      await recordCampaignCancellation({
+        prisma,
+        campaignId,
+        recipientId,
+        now: now(),
+      });
+      return { success: false, cancelled: true, status: 'cancelled' };
+    }
+    if (persistedRecipient.campaign.status === 'paused') {
+      await job.moveToDelayed(Date.now() + PAUSED_RECHECK_MS, job.token);
+      throw new DelayedError();
     }
 
     const { allowed, delayMs } = await checkRateLimit(userId);
