@@ -2,6 +2,8 @@ import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } fro
 
 const s3 = new S3Client({
   region: process.env.AWS_REGION,
+  endpoint: process.env.S3_ENDPOINT || undefined,
+  forcePathStyle: Boolean(process.env.S3_ENDPOINT),
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
@@ -10,8 +12,10 @@ const s3 = new S3Client({
 
 // Helper to get S3 key from a full S3 URL
 export function getS3KeyFromUrl(url) {
-  console.log("URL: ", url);
-  return url.split('.amazonaws.com/')[1];
+  const parsed = new URL(url);
+  const path = parsed.pathname.replace(/^\//, '');
+  const bucketPrefix = `${process.env.S3_BUCKET}/`;
+  return path.startsWith(bucketPrefix) ? path.slice(bucketPrefix.length) : path;
 }
 
 export async function uploadAttachmentToS3(fileBuffer, fileName, mimetype) {

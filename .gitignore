@@ -29,6 +29,7 @@ build/
 *.sqlite
 *.dump
 *.sql
+!prisma/migrations/**/*.sql
 
 # VSCode settings (optional)
 .vscode/
