@@ -1,6 +1,6 @@
 import { Worker } from 'bullmq';
 import sendEmailWithGmail from '../utils/sendEmailWithGmail.js';
-import { canSendEmail, incrementEmailCount } from '../utils/rateLimit.js';
+import { acquireDeliveryQuota, quotaOptionsFromEnv } from '../services/deliveryQuota.js';
 import { createEmailJobProcessor } from '../services/emailDelivery.js';
 import { createRedisConnection } from './redisConnection.js';
 
@@ -8,8 +8,8 @@ export function createEmailWorker({
   prisma,
   connection = createRedisConnection(),
   sendEmail = sendEmailWithGmail,
-  checkRateLimit = canSendEmail,
-  recordEmailCount = incrementEmailCount,
+  checkRateLimit,
+  recordEmailCount = async () => {},
   checkSuppression,
   prepareMessage,
 } = {}) {
@@ -17,10 +17,16 @@ export function createEmailWorker({
     throw new Error('createEmailWorker requires a Prisma client');
   }
 
+  const quotaOptions = quotaOptionsFromEnv();
+  const quotaCheck = checkRateLimit ?? ((userId) => acquireDeliveryQuota({
+    redis: connection,
+    userId,
+    options: quotaOptions,
+  }));
   const processor = createEmailJobProcessor({
     prisma,
     sendEmail,
-    checkRateLimit,
+    checkRateLimit: quotaCheck,
     recordEmailCount,
     checkSuppression,
     prepareMessage,

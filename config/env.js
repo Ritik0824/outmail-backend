@@ -14,6 +14,9 @@ const envSchema = Joi.object({
   PUBLIC_API_URL: Joi.string().uri().default('http://localhost:3000'),
   DELIVERY_WEBHOOK_SECRET: Joi.string().min(32).required(),
   DELIVERY_WEBHOOK_MAX_SKEW_SECONDS: Joi.number().integer().min(30).max(3600).default(300),
+  DELIVERY_MINUTE_LIMIT: Joi.number().integer().min(1).max(1000).default(20),
+  DELIVERY_DAILY_LIMIT: Joi.number().integer().min(1).max(100000).default(500),
+  DELIVERY_TIMEZONE_OFFSET_MINUTES: Joi.number().integer().min(-720).max(840).default(330),
   GOOGLE_CLIENT_ID: Joi.string().required(),
   GOOGLE_CLIENT_SECRET: Joi.string().required(),
   GOOGLE_REDIRECT_URI: Joi.string().uri().required(),
@@ -47,6 +50,9 @@ export function loadConfig(env = process.env) {
     publicApiUrl: value.PUBLIC_API_URL.replace(/\/$/, ''),
     unsubscribeTokenTtlDays: value.UNSUBSCRIBE_TOKEN_TTL_DAYS,
     deliveryWebhookMaxSkewSeconds: value.DELIVERY_WEBHOOK_MAX_SKEW_SECONDS,
+    deliveryMinuteLimit: value.DELIVERY_MINUTE_LIMIT,
+    deliveryDailyLimit: value.DELIVERY_DAILY_LIMIT,
+    deliveryTimezoneOffsetMinutes: value.DELIVERY_TIMEZONE_OFFSET_MINUTES,
     queueAdminEmails: value.QUEUE_ADMIN_EMAILS.split(',').map((email) => email.trim().toLowerCase()).filter(Boolean),
   });
 }

@@ -12,6 +12,9 @@ test('loadConfig normalizes origins and queue administrators', () => {
     PUBLIC_API_URL: 'https://api.example.com/',
     UNSUBSCRIBE_TOKEN_TTL_DAYS: '45',
     DELIVERY_WEBHOOK_MAX_SKEW_SECONDS: '120',
+    DELIVERY_MINUTE_LIMIT: '12',
+    DELIVERY_DAILY_LIMIT: '240',
+    DELIVERY_TIMEZONE_OFFSET_MINUTES: '60',
   });
 
   assert.deepEqual(config.allowedOrigins, [
@@ -22,6 +25,9 @@ test('loadConfig normalizes origins and queue administrators', () => {
   assert.equal(config.publicApiUrl, 'https://api.example.com');
   assert.equal(config.unsubscribeTokenTtlDays, 45);
   assert.equal(config.deliveryWebhookMaxSkewSeconds, 120);
+  assert.equal(config.deliveryMinuteLimit, 12);
+  assert.equal(config.deliveryDailyLimit, 240);
+  assert.equal(config.deliveryTimezoneOffsetMinutes, 60);
 });
 
 test('loadConfig applies safe development defaults', () => {

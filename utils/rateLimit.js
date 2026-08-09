@@ -1,36 +1,26 @@
-import { createClient } from 'redis';
+import { createRedisConnection } from '../queue/redisConnection.js';
+import { acquireDeliveryQuota, quotaOptionsFromEnv } from '../services/deliveryQuota.js';
 
-const redis = createClient({
-  url: process.env.REDIS_URL || 'redis://localhost:6379',
-});
-await redis.connect();
+let compatibilityConnection;
 
-function getISTMidnight() {
-  const now = new Date();
-  // IST is UTC+5:30
-  const istOffset = 5.5 * 60 * 60 * 1000;
-  const utcMidnight = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  return new Date(utcMidnight + istOffset);
+function redisConnection() {
+  compatibilityConnection ??= createRedisConnection({ lazyConnect: true });
+  return compatibilityConnection;
 }
 
 export async function canSendEmail(userId) {
-  const dayKey = `user:${userId}:dailyLimit`;
-  const dayCount = parseInt(await redis.get(dayKey) || '0', 10);
-
-  if (dayCount >= 50) {
-    // Next allowed: next day 9:30am IST
-    const now = new Date();
-    const nextIST = getISTMidnight();
-    nextIST.setDate(nextIST.getDate() + 1);
-    nextIST.setHours(9, 30, 0, 0);
-    const delayMs = nextIST.getTime() - now.getTime();
-    return { allowed: false, delayMs };
-  }
-  return { allowed: true, delayMs: 0 };
+  return acquireDeliveryQuota({
+    redis: redisConnection(),
+    userId,
+    options: quotaOptionsFromEnv(),
+  });
 }
 
-export async function incrementEmailCount(userId) {
-  const dayKey = `user:${userId}:dailyLimit`;
-  const count = await redis.incr(dayKey);
-  if (count === 1) await redis.expire(dayKey, 86400); // 24h
+// Quota acquisition is now atomic, so legacy callers do not increment twice.
+export async function incrementEmailCount() {}
+
+export async function closeRateLimitConnection() {
+  if (!compatibilityConnection) return;
+  await compatibilityConnection.quit();
+  compatibilityConnection = undefined;
 }
