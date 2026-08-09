@@ -9,6 +9,8 @@ test('loadConfig normalizes origins and queue administrators', () => {
     ...process.env,
     APP_ORIGINS: 'https://app.example.com, https://admin.example.com ',
     QUEUE_ADMIN_EMAILS: 'ADMIN@example.com, ops@example.com',
+    PUBLIC_API_URL: 'https://api.example.com/',
+    UNSUBSCRIBE_TOKEN_TTL_DAYS: '45',
   });
 
   assert.deepEqual(config.allowedOrigins, [
@@ -16,6 +18,8 @@ test('loadConfig normalizes origins and queue administrators', () => {
     'https://admin.example.com',
   ]);
   assert.deepEqual(config.queueAdminEmails, ['admin@example.com', 'ops@example.com']);
+  assert.equal(config.publicApiUrl, 'https://api.example.com');
+  assert.equal(config.unsubscribeTokenTtlDays, 45);
 });
 
 test('loadConfig applies safe development defaults', () => {
@@ -40,6 +44,7 @@ test('loadConfig reports all invalid required settings together', () => {
       assert.match(error.message, /DATABASE_URL/);
       assert.match(error.message, /JWT_SECRET/);
       assert.match(error.message, /SECRET_KEY/);
+      assert.match(error.message, /UNSUBSCRIBE_SECRET/);
       return true;
     },
   );

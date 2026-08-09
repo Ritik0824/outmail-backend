@@ -51,6 +51,9 @@ the populated `.env` file.
 `APP_ORIGINS` is a comma-separated browser origin allowlist.
 `QUEUE_ADMIN_EMAILS` is a comma-separated list of authenticated users that may
 access the queue dashboard.
+`UNSUBSCRIBE_SECRET` signs public opt-out links and must be independent from
+the login and credential-encryption secrets. `PUBLIC_API_URL` is the externally
+reachable API origin embedded in those links.
 
 ### Database migrations
 

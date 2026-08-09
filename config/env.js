@@ -9,6 +9,9 @@ const envSchema = Joi.object({
   FRONTEND_URL: Joi.string().uri().default('http://localhost:8080'),
   JWT_SECRET: Joi.string().min(32).required(),
   SECRET_KEY: Joi.string().min(32).required(),
+  UNSUBSCRIBE_SECRET: Joi.string().min(32).required(),
+  UNSUBSCRIBE_TOKEN_TTL_DAYS: Joi.number().integer().min(1).max(365).default(90),
+  PUBLIC_API_URL: Joi.string().uri().default('http://localhost:3000'),
   GOOGLE_CLIENT_ID: Joi.string().required(),
   GOOGLE_CLIENT_SECRET: Joi.string().required(),
   GOOGLE_REDIRECT_URI: Joi.string().uri().required(),
@@ -39,6 +42,8 @@ export function loadConfig(env = process.env) {
     redisUrl: value.REDIS_URL,
     allowedOrigins: value.APP_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean),
     frontendUrl: value.FRONTEND_URL,
+    publicApiUrl: value.PUBLIC_API_URL.replace(/\/$/, ''),
+    unsubscribeTokenTtlDays: value.UNSUBSCRIBE_TOKEN_TTL_DAYS,
     queueAdminEmails: value.QUEUE_ADMIN_EMAILS.split(',').map((email) => email.trim().toLowerCase()).filter(Boolean),
   });
 }
