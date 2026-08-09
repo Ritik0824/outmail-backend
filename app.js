@@ -12,6 +12,7 @@ import templatesRouter from './routes/templates.js';
 import emailUsageRoutes from './routes/emailUsage.js';
 import resumesRouter from './routes/resumes.js';
 import suppressionsRouter from './routes/suppressions.js';
+import unsubscribeRouter from './routes/unsubscribe.js';
 import { emailQueue } from './queue/emailQueue.js';
 import { authenticateJWT, requireQueueAdmin } from './middleware/auth.js';
 
@@ -47,6 +48,7 @@ export function createApp({ queue = emailQueue, enableQueueDashboard = true } = 
   app.use('/api/templates', templatesRouter);
   app.use('/api/resumes', resumesRouter);
   app.use('/api/suppressions', suppressionsRouter);
+  app.use('/api/unsubscribe', unsubscribeRouter);
 
   if (enableQueueDashboard) {
     const serverAdapter = new ExpressAdapter();

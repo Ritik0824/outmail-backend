@@ -83,3 +83,13 @@ test('suppression management requires authentication', async () => {
 
   assert.ok(responses.every(({ status }) => status === 401));
 });
+
+test('public unsubscribe endpoints reject invalid tokens without caching', async () => {
+  const preview = await request(app).get('/api/unsubscribe/not-a-valid-token');
+  const confirmation = await request(app).post('/api/unsubscribe/not-a-valid-token');
+
+  assert.equal(preview.status, 400);
+  assert.equal(confirmation.status, 400);
+  assert.equal(preview.body.code, 'MALFORMED_UNSUBSCRIBE_TOKEN');
+  assert.match(preview.headers['cache-control'], /no-store/);
+});
