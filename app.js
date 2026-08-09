@@ -16,6 +16,7 @@ import unsubscribeRouter from './routes/unsubscribe.js';
 import deliveryWebhooksRouter from './routes/deliveryWebhooks.js';
 import analyticsRouter from './routes/analytics.js';
 import operationsRouter from './routes/operations.js';
+import healthRouter from './routes/health.js';
 import { emailQueue } from './queue/emailQueue.js';
 import { authenticateJWT, requireQueueAdmin } from './middleware/auth.js';
 
@@ -59,6 +60,7 @@ export function createApp({ queue = emailQueue, enableQueueDashboard = true } = 
   app.use('/api/unsubscribe', unsubscribeRouter);
   app.use('/api/analytics', analyticsRouter);
   app.use('/api/operations', operationsRouter);
+  app.use('/health', healthRouter);
 
   if (enableQueueDashboard) {
     const serverAdapter = new ExpressAdapter();
@@ -69,10 +71,6 @@ export function createApp({ queue = emailQueue, enableQueueDashboard = true } = 
     });
     app.use('/admin/queues', authenticateJWT, requireQueueAdmin, serverAdapter.getRouter());
   }
-
-  app.get('/health/live', (_req, res) => {
-    res.status(200).json({ status: 'ok' });
-  });
 
   app.get('/', (_req, res) => {
     res.send('OutMail backend is running ✅');

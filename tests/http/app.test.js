@@ -146,3 +146,8 @@ test('operational reconciliation endpoints require authentication', async () => 
 
   assert.deepEqual(responses.map(({ status }) => status), [401, 401, 401]);
 });
+
+test('detailed dependency health requires administrator authentication', async () => {
+  const response = await request(app).get('/health/details');
+  assert.equal(response.status, 401);
+});
