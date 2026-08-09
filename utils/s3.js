@@ -50,6 +50,12 @@ export async function deleteAttachmentFromS3(s3Url) {
   await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
 }
 
+export async function deleteCsvFromS3(s3Url) {
+  const bucket = process.env.S3_BUCKET;
+  const key = getS3KeyFromUrl(s3Url);
+  await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+}
+
 // ✅ Exported helper to get file buffer from S3
 export async function getS3FileBufferFromUrl(s3Url) {
   const bucket = process.env.S3_BUCKET;
