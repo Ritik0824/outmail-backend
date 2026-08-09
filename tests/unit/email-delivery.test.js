@@ -128,6 +128,7 @@ function createProcessor(store, overrides = {}) {
     checkRateLimit: async () => ({ allowed: true, delayMs: 0 }),
     recordEmailCount: async () => {},
     checkSuppression: async () => ({ suppressed: false, entry: null }),
+    prepareMessage: ({ text }) => ({ text: `${text}\nUnsubscribe: test-link` }),
     now: () => new Date('2026-08-10T10:00:00.000Z'),
     ...overrides,
   });
@@ -149,6 +150,7 @@ test('a successful delivery records the attempt and advances campaign progress o
   assert.equal(store.state.attempts.get(1).status, 'sent');
   assert.equal(store.state.attempts.get(1).provider_message_id, 'provider-1');
   assert.equal(store.state.logs.length, 1);
+  assert.match(store.state.logs[0].preview_html, /Unsubscribe: test-link/);
   assert.equal(usageCount, 1);
 });
 

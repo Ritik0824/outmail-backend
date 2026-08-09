@@ -1,5 +1,6 @@
 import { DelayedError, UnrecoverableError } from 'bullmq';
 import { getSuppressionDecision } from './suppressionService.js';
+import { prepareUnsubscribeMessage } from './unsubscribeMessage.js';
 
 const TERMINAL_RECIPIENT_STATUSES = [
   'sent',
@@ -292,6 +293,7 @@ export function createEmailJobProcessor({
   checkRateLimit,
   recordEmailCount,
   checkSuppression = getSuppressionDecision,
+  prepareMessage = prepareUnsubscribeMessage,
   now = () => new Date(),
 }) {
   return async function processEmailJob(job) {
@@ -390,13 +392,22 @@ export function createEmailJobProcessor({
       throw error;
     }
 
+    const deliveryMessage = prepareMessage({
+      userId,
+      campaignId,
+      recipientId,
+      email: recipient.email,
+      text: body || resources.template?.html_content || '',
+      now: attemptedAt,
+    });
+
     let result;
     try {
       result = await sendEmail({
         user: resources.user,
         recipient,
         subject: subject || resources.template?.subject,
-        text: body || resources.template?.html_content,
+        text: deliveryMessage.text,
         attachments: resources.resumes.map((resume) => ({
           filename: resume.name,
           path: resume.s3_path,
@@ -412,7 +423,7 @@ export function createEmailJobProcessor({
         recipientId,
         attempt,
         error,
-        previewHtml: body || resources.template?.html_content || '',
+        previewHtml: deliveryMessage.text,
         finalAttempt: attempt >= maximumAttempts(job),
         now: now(),
       });
@@ -427,7 +438,7 @@ export function createEmailJobProcessor({
         recipientId,
         attempt,
         result,
-        previewHtml: body || resources.template?.html_content || '',
+        previewHtml: deliveryMessage.text,
         now: now(),
       });
     } catch (error) {
