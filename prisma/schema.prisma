@@ -138,8 +138,9 @@ model CampaignRecipient {
   created_at         DateTime  @default(now())
   updated_at         DateTime  @updatedAt
 
-  campaign         Campaign          @relation(fields: [campaign_id], references: [id], onDelete: Cascade)
+  campaign         Campaign                @relation(fields: [campaign_id], references: [id], onDelete: Cascade)
   deliveryAttempts DeliveryAttempt[]
+  providerEvents   ProviderDeliveryEvent[]
 
   @@unique([campaign_id, email])
   @@unique([campaign_id, position])
@@ -158,10 +159,36 @@ model DeliveryAttempt {
   finished_at         DateTime?
   created_at          DateTime  @default(now())
 
-  recipient CampaignRecipient @relation(fields: [recipient_id], references: [id], onDelete: Cascade)
+  recipient      CampaignRecipient       @relation(fields: [recipient_id], references: [id], onDelete: Cascade)
+  providerEvents ProviderDeliveryEvent[]
 
   @@unique([recipient_id, attempt_number])
   @@index([recipient_id, status])
+  @@index([provider_message_id])
+}
+
+model ProviderDeliveryEvent {
+  id                  String    @id @default(uuid())
+  provider_event_id   String    @unique
+  provider_message_id String
+  delivery_attempt_id String?
+  recipient_id        String?
+  type                String
+  email               String
+  occurred_at         DateTime
+  payload             Json
+  outcome             String
+  error_message       String?
+  processed_at        DateTime?
+  created_at          DateTime  @default(now())
+
+  deliveryAttempt DeliveryAttempt?   @relation(fields: [delivery_attempt_id], references: [id], onDelete: SetNull)
+  recipient       CampaignRecipient? @relation(fields: [recipient_id], references: [id], onDelete: SetNull)
+
+  @@index([provider_message_id, occurred_at])
+  @@index([recipient_id, occurred_at])
+  @@index([type, occurred_at])
+  @@index([outcome, created_at])
 }
 
 model CampaignEvent {

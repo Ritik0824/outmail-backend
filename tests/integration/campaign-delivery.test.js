@@ -12,6 +12,7 @@ const { createAndQueueCampaign } = await import('../../services/campaignCreation
 const { createEmailJobProcessor } = await import('../../services/emailDelivery.js');
 
 async function clearDeliveryData() {
+  await prisma.providerDeliveryEvent.deleteMany();
   await prisma.suppressionEntry.deleteMany();
   await prisma.deliveryAttempt.deleteMany();
   await prisma.campaignEvent.deleteMany();
