@@ -5,10 +5,9 @@ import { authenticateJWT } from '../middleware/auth.js';
 import { emailQueue } from '../queue/emailQueue.js'; // BullMQ queue instance
 import csvParser from 'csv-parser';
 import fs from 'fs';
-import path from 'path';
 import { uploadCsvToS3 } from '../utils/s3.js';
 import fsPromises from 'fs/promises';
-import xlsx from 'xlsx';
+import readXlsxFile from 'read-excel-file/node';
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
@@ -216,15 +215,12 @@ router.post(
             .on('error', reject);
         });
       } else if (fileExt === 'xlsx') {
-        const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-        const rows = xlsx.utils.sheet_to_json(sheet, { defval: '' });
+        const rows = await readXlsxFile(fileBuffer);
 
-        if (!rows.length) {
+        if (rows.length < 2) {
           throw new Error('XLSX file is empty');
         }
-        const xlsxHeaders = Object.keys(rows[0]).map(h => h.trim().toLowerCase());
+        const xlsxHeaders = rows[0].map((header) => String(header ?? '').trim().toLowerCase());
         missingPlaceholders = placeholders.filter(ph => !xlsxHeaders.includes(ph));
         if (missingPlaceholders.length > 0) {
           throw new Error(
@@ -232,12 +228,10 @@ router.post(
           );
         }
 
-        let enqueued = 0;
-        for (const [i, row] of rows.entries()) {
-          const rowData = {};
-          Object.keys(row).forEach(k => {
-            rowData[k.trim().toLowerCase()] = row[k];
-          });
+        for (const [i, row] of rows.slice(1).entries()) {
+          const rowData = Object.fromEntries(
+            xlsxHeaders.map((header, columnIndex) => [header, String(row[columnIndex] ?? '')]),
+          );
           const recipientData = {};
           placeholders.forEach(ph => {
             recipientData[ph] = rowData[ph] || '';
