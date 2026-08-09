@@ -59,3 +59,14 @@ test('campaign delivery details and recovery require authentication', async () =
   assert.equal(details.status, 401);
   assert.equal(recovery.status, 401);
 });
+
+test('campaign lifecycle and event history require authentication', async () => {
+  const responses = await Promise.all([
+    request(app).post('/api/campaigns/campaign-1/pause'),
+    request(app).post('/api/campaigns/campaign-1/resume'),
+    request(app).post('/api/campaigns/campaign-1/cancel'),
+    request(app).get('/api/campaigns/campaign-1/events'),
+  ]);
+
+  assert.deepEqual(responses.map(({ status }) => status), [401, 401, 401, 401]);
+});

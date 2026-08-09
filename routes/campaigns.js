@@ -15,6 +15,14 @@ import {
   listCampaignRecipients,
   requeueCampaign,
 } from '../services/campaignManagement.js';
+import {
+  applyCampaignAction,
+  listCampaignEvents,
+} from '../services/campaignLifecycleService.js';
+import {
+  CAMPAIGN_ACTION,
+  CampaignTransitionError,
+} from '../domain/campaignLifecycle.js';
 
 const router = express.Router();
 const upload = multer({
@@ -23,7 +31,7 @@ const upload = multer({
 });
 
 function sendManagementError(res, error, fallbackMessage) {
-  if (error instanceof CampaignManagementError) {
+  if (error instanceof CampaignManagementError || error instanceof CampaignTransitionError) {
     return res.status(error.status).json({ error: error.message, code: error.code });
   }
   console.error(fallbackMessage, error);
@@ -132,6 +140,37 @@ router.post('/:campaignId/requeue', authenticateJWT, async (req, res) => {
     res.status(202).json({ success: true, ...result });
   } catch (error) {
     sendManagementError(res, error, 'Failed to requeue campaign');
+  }
+});
+
+for (const action of Object.values(CAMPAIGN_ACTION)) {
+  router.post(`/:campaignId/${action}`, authenticateJWT, async (req, res) => {
+    try {
+      const result = await applyCampaignAction({
+        prisma,
+        queue: emailQueue,
+        campaignId: req.params.campaignId,
+        userId: req.user.id,
+        action,
+      });
+      res.status(202).json({ success: true, ...result });
+    } catch (error) {
+      sendManagementError(res, error, `Failed to ${action} campaign`);
+    }
+  });
+}
+
+router.get('/:campaignId/events', authenticateJWT, async (req, res) => {
+  try {
+    const result = await listCampaignEvents({
+      prisma,
+      campaignId: req.params.campaignId,
+      userId: req.user.id,
+      query: req.query,
+    });
+    res.json(result);
+  } catch (error) {
+    sendManagementError(res, error, 'Failed to fetch campaign events');
   }
 });
 
