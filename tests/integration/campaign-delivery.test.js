@@ -13,6 +13,7 @@ const { createEmailJobProcessor } = await import('../../services/emailDelivery.j
 
 async function clearDeliveryData() {
   await prisma.deliveryAttempt.deleteMany();
+  await prisma.campaignEvent.deleteMany();
   await prisma.campaignRecipient.deleteMany();
   await prisma.emailLog.deleteMany();
   await prisma.campaignResume.deleteMany();

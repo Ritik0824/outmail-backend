@@ -177,6 +177,7 @@ async function persistCampaign({
         total_emails: recipients.length,
         sent_emails: 0,
         failed_emails: 0,
+        cancelled_emails: 0,
       },
     });
 

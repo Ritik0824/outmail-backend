@@ -27,25 +27,26 @@ model User {
 }
 
 model Campaign {
-  id              String    @id @default(uuid())
-  user_id         String
-  csv_upload_id   String    @unique
-  template_id     String?
-  name            String
-  subject         String
-  body            String
-  status          String
-  scheduled_start DateTime
-  timezone        String
-  total_emails    Int
-  sent_emails     Int
-  failed_emails   Int
-  created_at      DateTime  @default(now())
-  started_at      DateTime?
-  completed_at    DateTime?
-  cancelled_at    DateTime?
-  paused_at       DateTime?
-  deleted_at      DateTime?
+  id               String    @id @default(uuid())
+  user_id          String
+  csv_upload_id    String    @unique
+  template_id      String?
+  name             String
+  subject          String
+  body             String
+  status           String
+  scheduled_start  DateTime
+  timezone         String
+  total_emails     Int
+  sent_emails      Int
+  failed_emails    Int
+  cancelled_emails Int       @default(0)
+  created_at       DateTime  @default(now())
+  started_at       DateTime?
+  completed_at     DateTime?
+  cancelled_at     DateTime?
+  paused_at        DateTime?
+  deleted_at       DateTime?
 
   user            User                @relation(fields: [user_id], references: [id])
   csvUpload       CsvUpload           @relation(fields: [csv_upload_id], references: [id], onDelete: Cascade)
@@ -53,6 +54,7 @@ model Campaign {
   email_logs      EmailLog[]
   campaignResumes CampaignResume[]
   recipients      CampaignRecipient[]
+  events          CampaignEvent[]
 }
 
 model CsvUpload {
@@ -155,4 +157,20 @@ model DeliveryAttempt {
 
   @@unique([recipient_id, attempt_number])
   @@index([recipient_id, status])
+}
+
+model CampaignEvent {
+  id            String   @id @default(uuid())
+  campaign_id   String
+  actor_user_id String?
+  type          String
+  from_status   String?
+  to_status     String?
+  metadata      Json     @default("{}")
+  created_at    DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaign_id], references: [id], onDelete: Cascade)
+
+  @@index([campaign_id, created_at])
+  @@index([type, created_at])
 }

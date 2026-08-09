@@ -69,6 +69,7 @@ export async function getCampaignOverview({ prisma, campaignId, userId }) {
     total_emails: true,
     sent_emails: true,
     failed_emails: true,
+    cancelled_emails: true,
     created_at: true,
     started_at: true,
     completed_at: true,
