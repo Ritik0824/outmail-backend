@@ -17,6 +17,7 @@ import deliveryWebhooksRouter from './routes/deliveryWebhooks.js';
 import analyticsRouter from './routes/analytics.js';
 import operationsRouter from './routes/operations.js';
 import healthRouter from './routes/health.js';
+import docsRouter from './routes/docs.js';
 import { emailQueue } from './queue/emailQueue.js';
 import { authenticateJWT, requireQueueAdmin } from './middleware/auth.js';
 
@@ -61,6 +62,7 @@ export function createApp({ queue = emailQueue, enableQueueDashboard = true } = 
   app.use('/api/analytics', analyticsRouter);
   app.use('/api/operations', operationsRouter);
   app.use('/health', healthRouter);
+  app.use('/api/docs', docsRouter);
 
   if (enableQueueDashboard) {
     const serverAdapter = new ExpressAdapter();

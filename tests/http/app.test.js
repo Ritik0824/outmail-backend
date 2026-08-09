@@ -151,3 +151,16 @@ test('detailed dependency health requires administrator authentication', async (
   const response = await request(app).get('/health/details');
   assert.equal(response.status, 401);
 });
+
+test('machine-readable API documentation is public and cacheable', async () => {
+  const [index, specification] = await Promise.all([
+    request(app).get('/api/docs'),
+    request(app).get('/api/docs/openapi.json'),
+  ]);
+  assert.equal(index.status, 200);
+  assert.ok(index.body.operationCount >= 35);
+  assert.match(index.headers['cache-control'], /max-age=300/);
+  assert.equal(specification.status, 200);
+  assert.equal(specification.body.openapi, '3.1.0');
+  assert.match(specification.body.servers[0].url, /^http:\/\/127\.0\.0\.1:/);
+});
