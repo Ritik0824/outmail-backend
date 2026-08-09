@@ -8,30 +8,10 @@ import fs from 'fs';
 import { uploadCsvToS3 } from '../utils/s3.js';
 import fsPromises from 'fs/promises';
 import readXlsxFile from 'read-excel-file/node';
+import { extractPlaceholders, fillPlaceholders } from '../domain/template.js';
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
-
-// Utility to extract placeholders from template string (e.g. {{name}})
-function extractPlaceholders(template) {
-  if (!template) return [];
-  // This regex matches {{placeholder}} or {{ placeholder }}
-  const regex = /{{\s*([a-zA-Z0-9_ .-]+)\s*}}/g;
-  const placeholders = new Set();
-  let match;
-  while ((match = regex.exec(template))) {
-    placeholders.add(match[1].trim().toLowerCase());
-  }
-  return Array.from(placeholders);
-}
-
-function fillPlaceholders(template, data) {
-  if (!template) return '';
-  return template.replace(/{{\s*([a-zA-Z0-9_ .-]+)\s*}}/g, (_, key) => {
-    const value = data[key.trim().toLowerCase()];
-    return value !== undefined ? value : '';
-  });
-}
 
 router.get('/mine', authenticateJWT, async (req, res) => {
   const userId = req.user.id;
@@ -106,8 +86,7 @@ router.post(
       // 4. Extract placeholders from subject and body, always include 'email'
       const placeholders = [
         ...new Set([
-          ...extractPlaceholders(templateSubject),
-          ...extractPlaceholders(templateBody),
+          ...extractPlaceholders(templateSubject, templateBody),
           'email'
         ])
       ].map(ph => ph.trim().toLowerCase());
