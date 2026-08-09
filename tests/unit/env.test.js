@@ -11,6 +11,7 @@ test('loadConfig normalizes origins and queue administrators', () => {
     QUEUE_ADMIN_EMAILS: 'ADMIN@example.com, ops@example.com',
     PUBLIC_API_URL: 'https://api.example.com/',
     UNSUBSCRIBE_TOKEN_TTL_DAYS: '45',
+    DELIVERY_WEBHOOK_MAX_SKEW_SECONDS: '120',
   });
 
   assert.deepEqual(config.allowedOrigins, [
@@ -20,6 +21,7 @@ test('loadConfig normalizes origins and queue administrators', () => {
   assert.deepEqual(config.queueAdminEmails, ['admin@example.com', 'ops@example.com']);
   assert.equal(config.publicApiUrl, 'https://api.example.com');
   assert.equal(config.unsubscribeTokenTtlDays, 45);
+  assert.equal(config.deliveryWebhookMaxSkewSeconds, 120);
 });
 
 test('loadConfig applies safe development defaults', () => {
@@ -45,6 +47,7 @@ test('loadConfig reports all invalid required settings together', () => {
       assert.match(error.message, /JWT_SECRET/);
       assert.match(error.message, /SECRET_KEY/);
       assert.match(error.message, /UNSUBSCRIBE_SECRET/);
+      assert.match(error.message, /DELIVERY_WEBHOOK_SECRET/);
       return true;
     },
   );

@@ -54,6 +54,8 @@ access the queue dashboard.
 `UNSUBSCRIBE_SECRET` signs public opt-out links and must be independent from
 the login and credential-encryption secrets. `PUBLIC_API_URL` is the externally
 reachable API origin embedded in those links.
+`DELIVERY_WEBHOOK_SECRET` authenticates provider delivery callbacks. Keep the
+accepted timestamp skew narrow with `DELIVERY_WEBHOOK_MAX_SKEW_SECONDS`.
 
 ### Database migrations
 

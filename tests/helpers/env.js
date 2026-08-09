@@ -11,6 +11,8 @@ export function setTestEnv(overrides = {}) {
     UNSUBSCRIBE_SECRET: 'test-unsubscribe-secret-with-at-least-32-characters',
     UNSUBSCRIBE_TOKEN_TTL_DAYS: '90',
     PUBLIC_API_URL: 'http://localhost:3000',
+    DELIVERY_WEBHOOK_SECRET: 'test-delivery-webhook-secret-at-least-32-characters',
+    DELIVERY_WEBHOOK_MAX_SKEW_SECONDS: '300',
     GOOGLE_CLIENT_ID: 'test-google-client-id',
     GOOGLE_CLIENT_SECRET: 'test-google-client-secret',
     GOOGLE_REDIRECT_URI: 'http://localhost:3000/api/auth/google/callback',

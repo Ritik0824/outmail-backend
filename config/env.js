@@ -12,6 +12,8 @@ const envSchema = Joi.object({
   UNSUBSCRIBE_SECRET: Joi.string().min(32).required(),
   UNSUBSCRIBE_TOKEN_TTL_DAYS: Joi.number().integer().min(1).max(365).default(90),
   PUBLIC_API_URL: Joi.string().uri().default('http://localhost:3000'),
+  DELIVERY_WEBHOOK_SECRET: Joi.string().min(32).required(),
+  DELIVERY_WEBHOOK_MAX_SKEW_SECONDS: Joi.number().integer().min(30).max(3600).default(300),
   GOOGLE_CLIENT_ID: Joi.string().required(),
   GOOGLE_CLIENT_SECRET: Joi.string().required(),
   GOOGLE_REDIRECT_URI: Joi.string().uri().required(),
@@ -44,6 +46,7 @@ export function loadConfig(env = process.env) {
     frontendUrl: value.FRONTEND_URL,
     publicApiUrl: value.PUBLIC_API_URL.replace(/\/$/, ''),
     unsubscribeTokenTtlDays: value.UNSUBSCRIBE_TOKEN_TTL_DAYS,
+    deliveryWebhookMaxSkewSeconds: value.DELIVERY_WEBHOOK_MAX_SKEW_SECONDS,
     queueAdminEmails: value.QUEUE_ADMIN_EMAILS.split(',').map((email) => email.trim().toLowerCase()).filter(Boolean),
   });
 }
