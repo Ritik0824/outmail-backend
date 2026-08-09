@@ -38,12 +38,16 @@ export function createEmailWorker({
 
     // 2. Fetch template, resumes, user info
     const template = templateId
-      ? await prisma.emailTemplate.findUnique({ where: { id: templateId } })
+      ? await prisma.emailTemplate.findFirst({ where: { id: templateId, user_id: userId } })
       : null;
     const resumes = resumeIds && resumeIds.length
-      ? await prisma.resume.findMany({ where: { id: { in: resumeIds } } })
+      ? await prisma.resume.findMany({ where: { id: { in: resumeIds }, user_id: userId } })
       : [];
     const user = await prisma.user.findUnique({ where: { id: userId } });
+
+    if (!user || (templateId && !template) || resumes.length !== (resumeIds?.length || 0)) {
+      throw new Error('Campaign resources are missing or not owned by the campaign user');
+    }
 
     console.log(`[Worker] Sending email to ${recipient.email} with subject "${subject || (template && template.subject)}"`);
 

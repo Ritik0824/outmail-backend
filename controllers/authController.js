@@ -1,27 +1,11 @@
-import { PrismaClient } from '@prisma/client';
-import crypto from 'crypto';
 import { encrypt } from '../utils/encryption.js';
-import jwt from 'jsonwebtoken';
-const prisma = new PrismaClient();
+import prisma from '../prisma/prismaClient.js';
+import { createAuthToken, setAuthCookie } from '../utils/authToken.js';
 
 export const myDetails = async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'No token provided' });
-  }
-  const token = authHeader.split(' ')[1];
-
-  let decoded;
   try {
-    decoded = jwt.verify(token, process.env.JWT_SECRET);
-  } catch (err) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-
-  try {
-    // You can use decoded.id or decoded.email depending on your JWT payload
     const user = await prisma.user.findUnique({
-      where: { email: decoded.email },
+      where: { id: req.user.id },
       select: {
         id: true,
         google_id: true,
@@ -45,54 +29,20 @@ export const myDetails = async (req, res) => {
 
 
 export const updateName = async (req, res) => {
-  // 🟦 Log incoming request
-  // console.log('🟦 [update-name] Headers:', req.headers);
-  // console.log('🟦 [update-name] Body:', req.body);
-
-  // 1. Get and verify JWT
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'No token provided' });
-  }
-  const token = authHeader.split(' ')[1];
-
-  let decoded;
-  try {
-    decoded = jwt.verify(token, process.env.JWT_SECRET);
-    // 🟩 Log decoded JWT
-    // console.log('🟩 [update-name] Decoded JWT:', decoded);
-  } catch (err) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-
-  // 2. Validate input
-  const { name } = req.body;
-  if (!name) {
+  const name = req.body.name?.trim();
+  if (!name || name.length > 100) {
     return res.status(400).json({ error: 'Name is required' });
   }
 
   try {
-    // 3. Update user in DB (using email from JWT)
     const user = await prisma.user.update({
-      where: { email: decoded.email },
+      where: { id: req.user.id },
       data: { display_name: name },
     });
-    // 🟪 Log updated user
-    // console.log('🟪 [update-name] User after update:', user);
 
-    // 4. Respond with updated user (without sensitive info)
     const { app_password_hash, ...userSafe } = user;
-
-    // In your updateName controller (after updating the user)
-    const payload = {
-      id: user.id,
-      email: user.email,
-      display_name: user.display_name,
-      google_id: user.google_id,
-      isFirstTime: !user.app_password_hash,
-    };
-    const newToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.json({ user: userSafe, token: newToken });
+    setAuthCookie(res, createAuthToken(user));
+    res.json({ user: userSafe });
   } catch (err) {
     console.error('Update name error:', err);
     res.status(500).json({ error: 'Failed to update name.' });
@@ -100,41 +50,33 @@ export const updateName = async (req, res) => {
 };
 
 /**
- * Handles user login via Google OAuth.
- * If user exists (by email), updates last_login. If not, creates a new user.
- * Expects req.body: { google_id, email, display_name, app_password_hash }
+ * Stores the authenticated user's Gmail app password after OAuth sign-in.
+ * The caller cannot select or create a different user through this endpoint.
  */
 export const handleLogin = async (req, res) => {
-  const { google_id, email, display_name, app_password_hash } = req.body;
+  const displayName = req.body.display_name?.trim();
+  const appPassword = req.body.app_password || req.body.app_password_hash;
 
-  if (!email || !display_name || !app_password_hash) {
-    return res.status(400).json({ error: 'Missing required fields' });
+  if (!appPassword || typeof appPassword !== 'string' || appPassword.length > 512) {
+    return res.status(400).json({ error: 'App password is required' });
+  }
+  if (displayName && displayName.length > 100) {
+    return res.status(400).json({ error: 'Display name is too long' });
   }
 
   try {
-   const encryptedPassword = encrypt(app_password_hash);
-
-    const user = await prisma.user.upsert({
-      where: { email },
-      update: {
-        last_login: new Date(),
+    const encryptedPassword = encrypt(appPassword);
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
         app_password_hash: encryptedPassword,
-        display_name,
-        isFirstTime: false, 
-      },
-      create: {
-        id: crypto.randomUUID(),
-        google_id,
-        email,
-        display_name,
-        app_password_hash: encryptedPassword,
-        last_login: new Date(),
-        isFirstTime: false, 
+        display_name: displayName || undefined,
+        isFirstTime: false,
       },
     });
 
-    // Remove sensitive data before sending to frontend
     const { app_password_hash: _, ...userSafe } = user;
+    setAuthCookie(res, createAuthToken(user));
     res.status(200).json({ user: userSafe });
 
   } catch (error) {

@@ -1,6 +1,5 @@
 import express from 'express';
-import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../prisma/prismaClient.js';
 import multer from 'multer';
 import { authenticateJWT } from '../middleware/auth.js';
 import { emailQueue } from '../queue/emailQueue.js'; // BullMQ queue instance
@@ -12,7 +11,6 @@ import fsPromises from 'fs/promises';
 import xlsx from 'xlsx';
 
 const router = express.Router();
-const prisma = new PrismaClient();
 const upload = multer({ dest: 'uploads/' });
 
 // Utility to extract placeholders from template string (e.g. {{name}})
@@ -36,20 +34,8 @@ function fillPlaceholders(template, data) {
   });
 }
 
-router.get('/mine', async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'No token provided' });
-  }
-  const token = authHeader.split(' ')[1];
-  let decoded;
-  try {
-    decoded = jwt.verify(token, process.env.JWT_SECRET);
-  } catch (err) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-
-  const userId = decoded.id;
+router.get('/mine', authenticateJWT, async (req, res) => {
+  const userId = req.user.id;
 
   try {
     const campaigns = await prisma.campaign.findMany({
@@ -108,8 +94,8 @@ router.post(
       let templateSubject = subject;
       let templateBody = body;
       if (templateId && templateId !== '' && templateId !== 'null') {
-        template = await prisma.emailTemplate.findUnique({
-          where: { id: templateId },
+        template = await prisma.emailTemplate.findFirst({
+          where: { id: templateId, user_id: userId },
         });
         if (!template) {
           throw new Error('Email template not found');
@@ -126,6 +112,20 @@ router.post(
           'email'
         ])
       ].map(ph => ph.trim().toLowerCase());
+
+      const requestedResumeIds = Array.isArray(attachmentIds)
+        ? attachmentIds
+        : JSON.parse(attachmentIds || '[]');
+      const resumeIds = [...new Set(requestedResumeIds)];
+      const ownedResumes = resumeIds.length
+        ? await prisma.resume.findMany({
+            where: { id: { in: resumeIds }, user_id: userId },
+            select: { id: true },
+          })
+        : [];
+      if (ownedResumes.length !== resumeIds.length) {
+        throw new Error('One or more attachments were not found');
+      }
 
       // 1. Upload file to S3 and create CsvUpload entry
       const s3Url = await uploadCsvToS3(fileBuffer, csvFile.originalname, csvFile.mimetype);
@@ -155,9 +155,6 @@ router.post(
       });
 
       // 6. Link attachments (resumes) to campaign
-      const resumeIds = Array.isArray(attachmentIds)
-        ? attachmentIds
-        : JSON.parse(attachmentIds || '[]');
       for (const resumeId of resumeIds) {
         await prisma.campaignResume.create({
           data: {
@@ -287,6 +284,9 @@ router.post(
         return res.status(400).json({ error: err.message });
       }
       if (err.message && err.message === 'Email template not found') {
+        return res.status(400).json({ error: err.message });
+      }
+      if (err.message && err.message === 'One or more attachments were not found') {
         return res.status(400).json({ error: err.message });
       }
       if (err.message && err.message.startsWith('Unsupported file type')) {

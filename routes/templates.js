@@ -1,14 +1,12 @@
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../prisma/prismaClient.js';
 import { authenticateJWT } from '../middleware/auth.js';
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
 // Create a new template
 router.post('/', authenticateJWT, async (req, res) => {
   const { name, subject, html_content } = req.body;
-  console.log('Req: ',req.body);
   const user_id = req.user.id;
   if (!name || !subject || !html_content) {
     return res.status(400).json({ error: 'All fields are required.' });

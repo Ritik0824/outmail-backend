@@ -1,10 +1,9 @@
 import express from 'express';
 import Joi from 'joi';
 import rateLimit from 'express-rate-limit';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../prisma/prismaClient.js';
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
 const contactSchema = Joi.object({
   email: Joi.string().email().required(),

@@ -3,17 +3,22 @@ import passport from '../config/passport.js';
 import { handleLogin } from '../controllers/authController.js';
 import { updateName } from '../controllers/authController.js';
 import { myDetails } from '../controllers/authController.js';
-import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../prisma/prismaClient.js';
+import { authenticateJWT } from '../middleware/auth.js';
+import { clearAuthCookie, createAuthToken, setAuthCookie } from '../utils/authToken.js';
 
-const prisma = new PrismaClient();
 const router = express.Router();
 
-router.post('/login', handleLogin);
+router.post('/login', authenticateJWT, handleLogin);
 
-router.post('/update-name',updateName);
+router.post('/update-name', authenticateJWT, updateName);
 
-router.get('/me', myDetails);
+router.get('/me', authenticateJWT, myDetails);
+
+router.post('/logout', (_req, res) => {
+  clearAuthCookie(res);
+  res.status(204).end();
+});
 
 // Start Google OAuth
 router.get(
@@ -32,39 +37,12 @@ router.get(
     session: false,
   }),
   async (req, res) => {
-    // 🔍 Step 1: Log the entire user object returned by Passport
-    //console.log('✅ OAuth req.user object:', JSON.stringify(req.user, null, 2));
-
-    // 🔍 Step 2: Prepare the token payload
-    const payload = {
-      id: req.user.id || req.user.google_id,
-      email: req.user.email,
-      display_name: req.user.display_name,
-      google_id: req.user.google_id,
-      isFirstTime: !req.user.app_password_hash,
-      last_login: new Date(),
-    };
-
-    // Update last_login for the user in the database
-    await prisma.user.update({
-      where: { email: req.user.email },
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
       data: { last_login: new Date() }
     });
-
-    // 🔍 Step 3: Log the payload to be signed into JWT
-    // console.log('📦 JWT Payload:', payload);
-    // console.log('user object:', req.user);
-
-    // 🔐 Step 4: Sign the JWT
-    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
-
-    // 🔍 Step 5: Log the final token (optional)
-    //console.log('🔐 JWT Token:', token);
-
-    // 🔁 Step 6: Redirect with token
-      //  console.log('🚀 First-time user, redirecting to dashboard with token...', token , req.user?.google_id);
-      res.redirect(`http://localhost:8080/dashboard?token=${token}&google_id=${req.user.google_id}`);
-    
+    setAuthCookie(res, createAuthToken(user));
+    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:8080'}/dashboard`);
   }
 );
 

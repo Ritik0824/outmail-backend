@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 import { createBullBoard } from '@bull-board/api';
 import { ExpressAdapter } from '@bull-board/express';
 import pkg from '@bull-board/api/dist/src/queueAdapters/bullMQ.js';
@@ -11,6 +12,7 @@ import templatesRouter from './routes/templates.js';
 import emailUsageRoutes from './routes/emailUsage.js';
 import resumesRouter from './routes/resumes.js';
 import { emailQueue } from './queue/emailQueue.js';
+import { authenticateJWT, requireQueueAdmin } from './middleware/auth.js';
 
 const { BullMQAdapter } = pkg;
 
@@ -22,6 +24,7 @@ export function createApp({ queue = emailQueue } = {}) {
     .filter(Boolean);
 
   app.disable('x-powered-by');
+  app.use(helmet());
   app.use(cors({
     origin(origin, callback) {
       if (!origin || allowedOrigins.includes(origin)) {
@@ -49,7 +52,7 @@ export function createApp({ queue = emailQueue } = {}) {
     queues: [new BullMQAdapter(queue)],
     serverAdapter,
   });
-  app.use('/admin/queues', serverAdapter.getRouter());
+  app.use('/admin/queues', authenticateJWT, requireQueueAdmin, serverAdapter.getRouter());
 
   app.get('/health/live', (_req, res) => {
     res.status(200).json({ status: 'ok' });

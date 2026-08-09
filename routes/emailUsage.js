@@ -1,24 +1,11 @@
 import express from 'express';
-import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../prisma/prismaClient.js';
+import { authenticateJWT } from '../middleware/auth.js';
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
-router.get('/email-usage', async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'No token provided' });
-  }
-  const token = authHeader.split(' ')[1];
-  let decoded;
-  try {
-    decoded = jwt.verify(token, process.env.JWT_SECRET);
-  } catch (err) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-
-  const userId = decoded.id;
+router.get('/email-usage', authenticateJWT, async (req, res) => {
+  const userId = req.user.id;
   const now = new Date();
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
