@@ -2,98 +2,85 @@ import express from 'express';
 import multer from 'multer';
 import prisma from '../prisma/prismaClient.js';
 import { authenticateJWT } from '../middleware/auth.js';
-import path from 'path';
-import fs from 'fs';
 import { uploadAttachmentToS3, deleteAttachmentFromS3 } from '../utils/s3.js';
+import {
+  ATTACHMENT_LIMITS,
+  AttachmentServiceError,
+  createAttachment,
+  deleteAttachment,
+  listAttachments,
+} from '../services/attachmentService.js';
 
 const router = express.Router();
 
-const uploadDir = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-
-const allowed = [
-  // Documents
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  // Images
-  'image/jpeg',
-  'image/png',
-  'image/gif',
-  'image/bmp',
-  'image/webp',
-  // Text
-  'text/plain',
-  'text/csv',
-  // Archives
-  'application/zip',
-  'application/x-rar-compressed'
-];
 const upload = multer({
-  dest: uploadDir,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-  fileFilter: (req, file, cb) => {
-    if (allowed.includes(file.mimetype)) cb(null, true);
-    else cb(new Error('Only typical document, image, spreadsheet, or archive files are allowed.'));
-  }
+  storage: multer.memoryStorage(),
+  limits: { fileSize: ATTACHMENT_LIMITS.maximumFileBytes, files: 1 },
 });
+
+const storage = {
+  upload: ({ buffer, name, mimetype }) => uploadAttachmentToS3(buffer, name, mimetype),
+  delete: (url) => deleteAttachmentFromS3(url),
+};
+
+function sendAttachmentError(res, error, fallback) {
+  if (error instanceof AttachmentServiceError) {
+    return res.status(error.status).json({
+      error: error.message,
+      code: error.code,
+      ...error.details,
+    });
+  }
+  if (error instanceof multer.MulterError) {
+    const status = error.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+    return res.status(status).json({ error: error.message, code: error.code });
+  }
+  console.error(fallback, error);
+  return res.status(500).json({ error: fallback });
+}
 
 // List resumes
 router.get('/', authenticateJWT, async (req, res) => {
-  const user_id = req.user.id;
-  const resumes = await prisma.resume.findMany({
-    where: { user_id },
-    orderBy: { uploaded_at: 'desc' }
-  });
-  res.json(resumes);
+  try {
+    const result = await listAttachments({ prisma, userId: req.user.id, query: req.query });
+    res.json(result);
+  } catch (error) {
+    sendAttachmentError(res, error, 'Failed to list attachments');
+  }
 });
 
 // Upload resume
 router.post('/', authenticateJWT, upload.single('file'), async (req, res) => {
-  const user_id = req.user.id;
-  const file = req.file;
-  if (!file) return res.status(400).json({ error: 'No file uploaded.' });
-
-  const count = await prisma.resume.count({ where: { user_id } });
-  if (count >= 3) {
-    await fs.promises.unlink(file.path);
-    return res.status(400).json({ error: 'Maximum 3 resumes allowed.' });
-  }
-
   try {
-    const fileBuffer = await fs.promises.readFile(file.path);
-    const s3Url = await uploadAttachmentToS3(fileBuffer, file.originalname, file.mimetype);
-    const resume = await prisma.resume.create({
-      data: {
-        user_id,
-        name: file.originalname,
-        s3_path: s3Url,
-      }
+    const attachment = await createAttachment({
+      prisma,
+      storage,
+      userId: req.user.id,
+      file: req.file,
     });
-    res.json(resume);
-  } finally {
-    await fs.promises.unlink(file.path).catch(() => {});
+    res.status(201).json({ attachment });
+  } catch (error) {
+    sendAttachmentError(res, error, 'Failed to upload attachment');
   }
 });
 
 // Delete resume
 router.delete('/:id', authenticateJWT, async (req, res) => {
-  const user_id = req.user.id;
-  const { id } = req.params;
-  const resume = await prisma.resume.findUnique({ where: { id } });
-  if (!resume || resume.user_id !== user_id) return res.status(404).json({ error: 'Not found' });
-
   try {
-    await deleteAttachmentFromS3(resume.s3_path);
-  } catch (err) {
-    // Optionally log error, but continue to delete DB record
+    const result = await deleteAttachment({
+      prisma,
+      storage,
+      userId: req.user.id,
+      attachmentId: req.params.id,
+    });
+    res.json(result);
+  } catch (error) {
+    sendAttachmentError(res, error, 'Failed to delete attachment');
   }
-  await prisma.resume.delete({ where: { id } });
-  res.json({ success: true });
+});
+
+router.use((error, _req, res, _next) => {
+  sendAttachmentError(res, error, 'Attachment request failed');
 });
 
 export default router;

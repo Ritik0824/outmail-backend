@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 
 const s3 = new S3Client({
@@ -20,12 +21,15 @@ export function getS3KeyFromUrl(url) {
 
 export async function uploadAttachmentToS3(fileBuffer, fileName, mimetype) {
   const bucket = process.env.S3_BUCKET;
-  const key = `attachments/${Date.now()}-${fileName}`;
+  const extension = fileName.includes('.') ? fileName.slice(fileName.lastIndexOf('.')).toLowerCase() : '';
+  const key = `attachments/${randomUUID()}${extension}`;
   const command = new PutObjectCommand({
     Bucket: bucket,
     Key: key,
     Body: fileBuffer,
     ContentType: mimetype,
+    ContentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+    Metadata: { originalName: encodeURIComponent(fileName) },
   });
   await s3.send(command);
   return `${process.env.S3_URL}/${key}`;
