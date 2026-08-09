@@ -57,6 +57,25 @@ access the queue dashboard.
 Create migrations during development with `npm run db:migrate`. Apply committed
 migrations in test and production environments with `npm run db:deploy`.
 
+### Tests
+
+Unit and dependency-free HTTP tests do not require Docker:
+
+```bash
+npm test
+```
+
+Database integration tests use a separate PostgreSQL schema:
+
+```bash
+docker compose up -d postgres redis
+DATABASE_URL='postgresql://outmail:outmail@localhost:5432/outmail?schema=outmail_test' npm run db:deploy
+TEST_DATABASE_URL='postgresql://outmail:outmail@localhost:5432/outmail?schema=outmail_test' npm run test:integration
+```
+
+The integration suite deletes its own user fixtures. Do not point
+`TEST_DATABASE_URL` at a development, staging, or production schema.
+
 ### Folder structure
 ```
 /config      → Environment and database configuration

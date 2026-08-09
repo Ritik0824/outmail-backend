@@ -16,7 +16,7 @@ import { authenticateJWT, requireQueueAdmin } from './middleware/auth.js';
 
 const { BullMQAdapter } = pkg;
 
-export function createApp({ queue = emailQueue } = {}) {
+export function createApp({ queue = emailQueue, enableQueueDashboard = true } = {}) {
   const app = express();
   const allowedOrigins = (process.env.APP_ORIGINS || 'http://localhost:8080')
     .split(',')
@@ -46,13 +46,15 @@ export function createApp({ queue = emailQueue } = {}) {
   app.use('/api/templates', templatesRouter);
   app.use('/api/resumes', resumesRouter);
 
-  const serverAdapter = new ExpressAdapter();
-  serverAdapter.setBasePath('/admin/queues');
-  createBullBoard({
-    queues: [new BullMQAdapter(queue)],
-    serverAdapter,
-  });
-  app.use('/admin/queues', authenticateJWT, requireQueueAdmin, serverAdapter.getRouter());
+  if (enableQueueDashboard) {
+    const serverAdapter = new ExpressAdapter();
+    serverAdapter.setBasePath('/admin/queues');
+    createBullBoard({
+      queues: [new BullMQAdapter(queue)],
+      serverAdapter,
+    });
+    app.use('/admin/queues', authenticateJWT, requireQueueAdmin, serverAdapter.getRouter());
+  }
 
   app.get('/health/live', (_req, res) => {
     res.status(200).json({ status: 'ok' });

@@ -1,0 +1,22 @@
+export function setTestEnv(overrides = {}) {
+  Object.assign(process.env, {
+    NODE_ENV: 'test',
+    PORT: '3000',
+    DATABASE_URL: 'postgresql://outmail:outmail@localhost:5432/outmail?schema=outmail_test',
+    REDIS_URL: 'redis://localhost:6379',
+    APP_ORIGINS: 'http://localhost:8080',
+    FRONTEND_URL: 'http://localhost:8080',
+    JWT_SECRET: 'test-jwt-secret-with-at-least-32-characters',
+    SECRET_KEY: 'test-encryption-key-with-at-least-32-characters',
+    GOOGLE_CLIENT_ID: 'test-google-client-id',
+    GOOGLE_CLIENT_SECRET: 'test-google-client-secret',
+    GOOGLE_REDIRECT_URI: 'http://localhost:3000/api/auth/google/callback',
+    AWS_REGION: 'us-east-1',
+    AWS_ACCESS_KEY_ID: 'test-access-key',
+    AWS_SECRET_ACCESS_KEY: 'test-secret-key',
+    S3_BUCKET: 'test-bucket',
+    S3_URL: 'https://test-bucket.s3.us-east-1.amazonaws.com',
+    QUEUE_ADMIN_EMAILS: 'admin@example.com',
+    ...overrides,
+  });
+}
