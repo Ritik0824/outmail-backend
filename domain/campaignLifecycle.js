@@ -93,12 +93,13 @@ export function campaignProgressStatus({
   sentEmails,
   failedEmails,
   cancelledEmails = 0,
+  suppressedEmails = 0,
   currentStatus,
 }) {
   if (isTerminalCampaignStatus(currentStatus)) return currentStatus;
   if (currentStatus === CAMPAIGN_STATUS.PAUSED) return CAMPAIGN_STATUS.PAUSED;
 
-  const accountedFor = sentEmails + failedEmails + cancelledEmails;
+  const accountedFor = sentEmails + failedEmails + cancelledEmails + suppressedEmails;
   if (totalEmails > 0 && accountedFor >= totalEmails) {
     return CAMPAIGN_STATUS.COMPLETED;
   }

@@ -178,6 +178,7 @@ async function persistCampaign({
         sent_emails: 0,
         failed_emails: 0,
         cancelled_emails: 0,
+        suppressed_emails: 0,
       },
     });
 

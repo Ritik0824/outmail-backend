@@ -110,6 +110,17 @@ test('progress completes when all recipients have terminal outcomes', () => {
   }), CAMPAIGN_STATUS.COMPLETED);
 });
 
+test('suppressed recipients count as terminal campaign outcomes', () => {
+  assert.equal(campaignProgressStatus({
+    totalEmails: 3,
+    sentEmails: 1,
+    failedEmails: 0,
+    cancelledEmails: 0,
+    suppressedEmails: 2,
+    currentStatus: CAMPAIGN_STATUS.RUNNING,
+  }), CAMPAIGN_STATUS.COMPLETED);
+});
+
 test('progress remains running while delivery outcomes are incomplete', () => {
   assert.equal(campaignProgressStatus({
     totalEmails: 5,

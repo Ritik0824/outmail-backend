@@ -54,6 +54,7 @@ router.get('/mine', authenticateJWT, async (req, res) => {
         sent_emails: true,
         failed_emails: true,
         cancelled_emails: true,
+        suppressed_emails: true,
       },
     });
     res.json({ campaigns });

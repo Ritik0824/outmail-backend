@@ -28,26 +28,27 @@ model User {
 }
 
 model Campaign {
-  id               String    @id @default(uuid())
-  user_id          String
-  csv_upload_id    String    @unique
-  template_id      String?
-  name             String
-  subject          String
-  body             String
-  status           String
-  scheduled_start  DateTime
-  timezone         String
-  total_emails     Int
-  sent_emails      Int
-  failed_emails    Int
-  cancelled_emails Int       @default(0)
-  created_at       DateTime  @default(now())
-  started_at       DateTime?
-  completed_at     DateTime?
-  cancelled_at     DateTime?
-  paused_at        DateTime?
-  deleted_at       DateTime?
+  id                String    @id @default(uuid())
+  user_id           String
+  csv_upload_id     String    @unique
+  template_id       String?
+  name              String
+  subject           String
+  body              String
+  status            String
+  scheduled_start   DateTime
+  timezone          String
+  total_emails      Int
+  sent_emails       Int
+  failed_emails     Int
+  cancelled_emails  Int       @default(0)
+  suppressed_emails Int       @default(0)
+  created_at        DateTime  @default(now())
+  started_at        DateTime?
+  completed_at      DateTime?
+  cancelled_at      DateTime?
+  paused_at         DateTime?
+  deleted_at        DateTime?
 
   user            User                @relation(fields: [user_id], references: [id])
   csvUpload       CsvUpload           @relation(fields: [csv_upload_id], references: [id], onDelete: Cascade)
@@ -122,18 +123,20 @@ model CampaignResume {
 }
 
 model CampaignRecipient {
-  id           String    @id @default(uuid())
-  campaign_id  String
-  email        String
-  payload      Json
-  position     Int
-  status       String    @default("pending")
-  queue_job_id String?   @unique
-  sent_at      DateTime?
-  failed_at    DateTime?
-  last_error   String?
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
+  id                 String    @id @default(uuid())
+  campaign_id        String
+  email              String
+  payload            Json
+  position           Int
+  status             String    @default("pending")
+  queue_job_id       String?   @unique
+  sent_at            DateTime?
+  failed_at          DateTime?
+  suppressed_at      DateTime?
+  suppression_reason String?
+  last_error         String?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
 
   campaign         Campaign          @relation(fields: [campaign_id], references: [id], onDelete: Cascade)
   deliveryAttempts DeliveryAttempt[]
@@ -141,6 +144,7 @@ model CampaignRecipient {
   @@unique([campaign_id, email])
   @@unique([campaign_id, position])
   @@index([campaign_id, status])
+  @@index([campaign_id, suppression_reason])
 }
 
 model DeliveryAttempt {
