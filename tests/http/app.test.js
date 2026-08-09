@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import request from 'supertest';
 import { setTestEnv } from '../helpers/env.js';
+import { signDeliveryWebhook } from '../../domain/deliveryWebhook.js';
 
 setTestEnv();
 const { createApp } = await import('../../app.js');
@@ -92,4 +93,36 @@ test('public unsubscribe endpoints reject invalid tokens without caching', async
   assert.equal(confirmation.status, 400);
   assert.equal(preview.body.code, 'MALFORMED_UNSUBSCRIBE_TOKEN');
   assert.match(preview.headers['cache-control'], /no-store/);
+});
+
+test('delivery webhooks require a current valid signature', async () => {
+  const response = await request(app)
+    .post('/api/webhooks/delivery')
+    .set('Content-Type', 'application/json')
+    .set('x-outmail-timestamp', String(Math.floor(Date.now() / 1_000)))
+    .set('x-outmail-signature', `v1=${'0'.repeat(64)}`)
+    .send('{"eventId":"event-1"}');
+
+  assert.equal(response.status, 401);
+  assert.equal(response.body.code, 'INVALID_WEBHOOK_SIGNATURE');
+  assert.match(response.headers['cache-control'], /no-store/);
+});
+
+test('delivery webhooks reject malformed JSON after signature verification', async () => {
+  const rawBody = '{not-json';
+  const timestamp = Math.floor(Date.now() / 1_000);
+  const signature = signDeliveryWebhook({
+    secret: process.env.DELIVERY_WEBHOOK_SECRET,
+    timestamp,
+    rawBody,
+  });
+  const response = await request(app)
+    .post('/api/webhooks/delivery')
+    .set('Content-Type', 'application/json')
+    .set('x-outmail-timestamp', String(timestamp))
+    .set('x-outmail-signature', signature)
+    .send(rawBody);
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.code, 'INVALID_WEBHOOK_JSON');
 });

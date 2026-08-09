@@ -13,6 +13,7 @@ import emailUsageRoutes from './routes/emailUsage.js';
 import resumesRouter from './routes/resumes.js';
 import suppressionsRouter from './routes/suppressions.js';
 import unsubscribeRouter from './routes/unsubscribe.js';
+import deliveryWebhooksRouter from './routes/deliveryWebhooks.js';
 import { emailQueue } from './queue/emailQueue.js';
 import { authenticateJWT, requireQueueAdmin } from './middleware/auth.js';
 
@@ -37,6 +38,11 @@ export function createApp({ queue = emailQueue, enableQueueDashboard = true } = 
     },
     credentials: true,
   }));
+  app.use(
+    '/api/webhooks/delivery',
+    express.raw({ type: 'application/json', limit: '256kb' }),
+    deliveryWebhooksRouter,
+  );
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
   app.use(cookieParser());
