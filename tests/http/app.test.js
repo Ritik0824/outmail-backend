@@ -70,3 +70,16 @@ test('campaign lifecycle and event history require authentication', async () => 
 
   assert.deepEqual(responses.map(({ status }) => status), [401, 401, 401, 401]);
 });
+
+test('suppression management requires authentication', async () => {
+  const responses = await Promise.all([
+    request(app).get('/api/suppressions'),
+    request(app).get('/api/suppressions/summary'),
+    request(app).get('/api/suppressions/check?email=user@example.com'),
+    request(app).post('/api/suppressions').send({ email: 'user@example.com' }),
+    request(app).post('/api/suppressions/batch').send({ emails: ['user@example.com'] }),
+    request(app).delete('/api/suppressions/user%40example.com'),
+  ]);
+
+  assert.ok(responses.every(({ status }) => status === 401));
+});
